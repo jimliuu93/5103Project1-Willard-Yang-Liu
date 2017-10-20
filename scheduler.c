@@ -1,5 +1,5 @@
 #include <sys/time.h>
-#include "queue.h"
+#include "uthread.h"
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,22 +7,16 @@
 
 
 // Data structures needed for uthread
-QUEUE* readyList;
-QUEUE* waitList;
-QUEUE* finishiedList;
-#define ready 0;
-#define wait 1;
-#define running 2;
+queue_t* readyList;
+queue_t* waitList;
+queue_t* finishiedList;
 
 // Globals
 struct itimerval timer;
-node_t* runningThread;
+tcb_t* runningThread;
 
 // Helper functions
-void thread_switch(node_t* runningThread, node_t* newThread);
-
-// pthread equivalents
-int uthread_create(void *(*start_routine)(void*), void *arg);
+void thread_switch(tcb_t* runningThread, tcb_t* newThread);
 
 int uthread_yield(void) {
   sigset_t signal_set;
@@ -31,7 +25,7 @@ int uthread_yield(void) {
 
   sigaddset(&signal_set, SIGVTALRM);
   sigprocmask(SIG_BLOCK, &signal_set, NULL);
-  tcb *chosenTCB, *finishedTCB;
+  tcb_t *chosenTCB, *finishedTCB;
   // Cannot disable interrupt in user level so ignore disableinterrupt
   node_t* firstNode = Dequeue(readyList);
   chosenTCB = firstNode->tcb;
@@ -93,7 +87,7 @@ int uthread_terminate(int tid) {
 int uthread_suspend(int tid) {
   if (runningThread->tid == tid) {
     // Similar to yield
-    tcb *chosenTCB, *finishedTCB;
+    tcb_t *chosenTCB, *finishedTCB;
     // Cannot disable interrupt in user level so ignore disableinterrupt
     node_t* readyNode;
     readyNode = Dequeue(readyList);
@@ -126,7 +120,7 @@ int uthread_suspend(int tid) {
   } else {
     // Search in the readyList
     node_t* current = readyList->head;
-    tcb *suspended;
+    tcb_t *suspended;
     if (tid == current->tcb->tid) {
       suspended = current->tcb;
       readyList->head = current->nextNode;
@@ -148,7 +142,7 @@ int uthread_suspend(int tid) {
 int uthread_resume(int tid) {
   // Remove the thread from ready list and put onto running list
   node_t* current = readyList->head;
-  tcb *nextRun, *finishiedTCB;
+  tcb_t *nextRun, *finishiedTCB;
   if (tid == current->tcb->tid) {
     nextRun = current->tcb;
     readyList->head = current->nextNode;
