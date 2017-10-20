@@ -16,16 +16,22 @@ QUEUE* finishiedList;
 
 // Globals
 struct itimerval timer;
-uthread* runningThread;
+node_t* runningThread;
 
 // Helper functions
-void thread_switch(uthread* runningThread, uthread* newThread);
+void thread_switch(node_t* runningThread, node_t* newThread);
 
 // pthread equivalents
 int uthread_create(void *(*start_routine)(void*), void *arg);
 
 int uthread_yield(void) {
-  uthread *chosenTCB, *finishedTCB;
+  sigset_t signal_set;
+
+  sigemptyset(&signal_set);
+
+  sigaddset(&signal_set, SIGVTALRM);
+  sigprocmask(SIG_BLOCK, &signal_set, NULL);
+  tcb *chosenTCB, *finishedTCB;
   // Cannot disable interrupt in user level so ignore disableinterrupt
   node_t* firstNode = Dequeue(readyList);
   chosenTCB = firstNode->tcb;
@@ -33,10 +39,10 @@ int uthread_yield(void) {
     // Nothing els to run, so go back to running original thread.
   } else {
     // Move running thread onto the ready list
-    runningThread->state = ready;
+    runningThread->state = ST_READY;
     Enqueue(readyList, runningThread);
     thread_switch(runningThread, chosenTCB); //Switch to new thread
-    runningThread->state = running;
+    runningThread->state = ST_READY;
   }
 
   // Delete any threads on the finishing list.
@@ -52,6 +58,7 @@ int uthread_yield(void) {
     perror("error calling setitimer");
     exit(1);
   }
+  sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
   return 0;
 }
 
@@ -86,7 +93,7 @@ int uthread_terminate(int tid) {
 int uthread_suspend(int tid) {
   if (runningThread->tid == tid) {
     // Similar to yield
-    uthread *chosenTCB, *finishedTCB;
+    tcb *chosenTCB, *finishedTCB;
     // Cannot disable interrupt in user level so ignore disableinterrupt
     node_t* readyNode;
     readyNode = Dequeue(readyList);
@@ -97,10 +104,10 @@ int uthread_suspend(int tid) {
       // If we keep a running list, then we need to loop through the running list
       // and find out the thread we want and store it as runningThread.
       // This step is ignored now and assume we know which is the running thread.
-      runningThread->state = ready;
+      runningThread->state = ST_READY;
       Enqueue(waitList, runningThread);
       thread_switch(runningThread, chosenTCB); //Switch to new thread
-      runningThread->state = running;
+      runningThread->state = ST_READY;
     }
 
     // Delete any threads on the finishing list.
@@ -119,7 +126,7 @@ int uthread_suspend(int tid) {
   } else {
     // Search in the readyList
     node_t* current = readyList->head;
-    uthread *suspended;
+    tcb *suspended;
     if (tid == current->tcb->tid) {
       suspended = current->tcb;
       readyList->head = current->nextNode;
@@ -141,7 +148,7 @@ int uthread_suspend(int tid) {
 int uthread_resume(int tid) {
   // Remove the thread from ready list and put onto running list
   node_t* current = readyList->head;
-  uthread *nextRun, *finishiedTCB;
+  tcb *nextRun, *finishiedTCB;
   if (tid == current->tcb->tid) {
     nextRun = current->tcb;
     readyList->head = current->nextNode;
@@ -159,10 +166,10 @@ int uthread_resume(int tid) {
       printf("Fail to find the thread of given tid in the ready list\n");
     }
   }
-  runningThread->state = ready;
+  runningThread->state = ST_READY;
   Enqueue(readyList, runningThread);
   thread_switch(runningThread, nextRun);
-  runningThread->state = running;
+  runningThread->state = ST_RUNNING;
 
   // Delete any threads on the finishing list.
   node_t* finishedNode;
