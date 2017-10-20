@@ -27,8 +27,8 @@ int uthread_create(void *(*start_routine)(void*), void *arg);
 int uthread_yield(void) {
   uthread *chosenTCB, *finishedTCB;
   // Cannot disable interrupt in user level so ignore disableinterrupt
-  NODE* firstNode = Dequeue(readyList);
-  chosenTCB = firstNode->TCB;
+  node_t* firstNode = Dequeue(readyList);
+  chosenTCB = firstNode->tcb;
   if (chosenTCB == NULL) {
     // Nothing els to run, so go back to running original thread.
   } else {
@@ -40,9 +40,9 @@ int uthread_yield(void) {
   }
 
   // Delete any threads on the finishing list.
-  NODE* finishedNode;
+  node_t* finishedNode;
   while ((finishedNode = Dequeue(finishiedList)) != NULL) {
-    finishedTCB = finishedNode->TCB;
+    finishedTCB = finishedNode->tcb;
     free(finishedTCB->stack);
     free(finishedTCB);
   }
@@ -88,9 +88,9 @@ int uthread_suspend(int tid) {
     // Similar to yield
     uthread *chosenTCB, *finishedTCB;
     // Cannot disable interrupt in user level so ignore disableinterrupt
-    NODE* readyNode;
+    node_t* readyNode;
     readyNode = Dequeue(readyList);
-    chosenTCB = readyNode->TCB;
+    chosenTCB = readyNode->tcb;
     if (chosenTCB == NULL) {
       // Nothing else to run, so go back to the running original thread
     } else {
@@ -104,9 +104,9 @@ int uthread_suspend(int tid) {
     }
 
     // Delete any threads on the finishing list.
-    NODE* finishedNode;
+    node_t* finishedNode;
     while ((finishedNode = Dequeue(finishiedList)) != NULL) {
-      finishedTCB = finishedNode->TCB;
+      finishedTCB = finishedNode->tcb;
       free(finishedTCB->stack);
       free(finishedTCB);
     }
@@ -118,15 +118,15 @@ int uthread_suspend(int tid) {
     }
   } else {
     // Search in the readyList
-    NODE* current = readyList->head;
+    node_t* current = readyList->head;
     uthread *suspended;
-    if (tid == current->TCB->tid) {
-      suspended = current->TCB;
+    if (tid == current->tcb->tid) {
+      suspended = current->tcb;
       readyList->head = current->nextNode;
     } else {
       while (current->nextNode != NULL) {
-        if (tid == current->nextNode->TCB->tid) {
-          suspended = current->nextNode->TCB;
+        if (tid == current->nextNode->tcb->tid) {
+          suspended = current->nextNode->tcb;
           current->nextNode = current->nextNode->nextNode;
           break;
         }
@@ -140,15 +140,15 @@ int uthread_suspend(int tid) {
 
 int uthread_resume(int tid) {
   // Remove the thread from ready list and put onto running list
-  NODE* current = readyList->head;
+  node_t* current = readyList->head;
   uthread *nextRun, *finishiedTCB;
-  if (tid == current->TCB->tid) {
-    nextRun = current->TCB;
+  if (tid == current->tcb->tid) {
+    nextRun = current->tcb;
     readyList->head = current->nextNode;
   } else {
     while (current->nextNode != NULL) {
-      if (tid == current->nextNode->TCB->tid) {
-        nextRun = current->nextNode->TCB;
+      if (tid == current->nextNode->tcb->tid) {
+        nextRun = current->nextNode->tcb;
         current->nextNode = current->nextNode->nextNode;
         break;
       }
@@ -165,9 +165,9 @@ int uthread_resume(int tid) {
   runningThread->state = running;
 
   // Delete any threads on the finishing list.
-  NODE* finishedNode;
+  node_t* finishedNode;
   while ((finishedNode = Dequeue(finishiedList)) != NULL) {
-    finishiedTCB = finishedNode->TCB;
+    finishiedTCB = finishedNode->tcb;
     free(finishiedTCB->stack);
     free(finishiedTCB);
   }
